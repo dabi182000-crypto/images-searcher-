@@ -1,93 +1,75 @@
-# Product Search
+# Product Finder (GitHub Pages)
 
-A tiny static site that lets you search a product catalog by **any** field and see each
-product's image. No build step, no framework — just `index.html`, a JSON file, and a folder
-of images. Hosts cleanly on GitHub Pages.
+A static product search page that works with any Excel sheet and an image folder. The site has no server, framework, or build tooling. The only preparation step is converting the workbook to `products.json`.
 
-## Repo layout
+## Private browser upload
+
+Use **Add Excel & images** in the website to choose an `.xlsx` workbook and its image folder directly from your computer. This is useful when the product data must not be public: the files stay in your browser session and are not uploaded to GitHub.
+
+Choose the **Image filename / Oracle code column** in the setup panel, then search or scan a supplier reference. The site finds that reference in Excel and uses the Oracle-code value from the same row to display the correct local image.
+
+## Repository layout
 
 ```
-.
-├── index.html        the whole app (HTML + CSS + JS in one file)
-├── build.py          converts products.xlsx → products.json
-├── products.xlsx     your spreadsheet (you provide)
-├── products.json     generated from the xlsx
-├── images/           your product images
-│   ├── ABC-123.jpg
-│   ├── ABC-123_1.jpg      (optional extra images: _1 .. _5)
-│   └── ...
-└── README.md
+index.html        The complete static website
+build.py          Converts the Excel workbook to JSON
+products.xlsx     Your workbook (add this at the repository root)
+products.json     Generated file used by the website
+images/           Product images
+  SKU-1234.jpg
+  SKU-1234_1.jpg
 ```
 
-## Generate `products.json` from Excel
+## Generate the product data
 
-Whenever you update `products.xlsx`:
+Install Python 3 and the Excel reader once:
 
 ```bash
-pip install openpyxl        # once
-python build.py             # reads products.xlsx, writes products.json
+pip install openpyxl
 ```
 
-Flags:
+Put your workbook at the repository root as `products.xlsx`, then run:
 
-- `--input path.xlsx` / `-i` — input file (default `products.xlsx`)
-- `--output path.json` / `-o` — output file (default `products.json`)
-- `--sheet "Sheet Name"` / `-s` — pick a specific sheet (default: first sheet)
+```bash
+python build.py
+```
 
-Notes on the conversion:
+This reads the first sheet and uses the first row as the headers exactly as written. To select a different sheet:
 
-- Row 1 is used as column headers **verbatim**. No column is hard-coded.
-- `=HYPERLINK("url", "label")` cells are resolved to the URL.
-- Native cell hyperlinks are resolved to their target URL.
-- Every column is preserved as-is.
+```bash
+python build.py --sheet "Sheet name"
+```
+
+Run `python build.py` again whenever the Excel file changes, then commit and push the updated `products.json`.
+
+Formula cells written as `=HYPERLINK("url","label")` are stored as the URL so they open normally in the product modal.
 
 ## Image naming rule
 
-Image filenames must equal the value of the "code column" you pick in the app,
-plus one of these extensions (tried in order):
+When opening the site for the first time, choose the **Image filename / Oracle code column**: the column whose values match image filenames. The image filename base must be the exact value in that chosen column:
 
 ```
-.jpg  .jpeg  .png  .webp  .gif
+images/SKU-1234.jpg
+images/HH0006901_1.png
 ```
 
-Examples: if the code column contains `SKU-1234`, the app will look for
-`images/SKU-1234.jpg`, then `.jpeg`, then `.png`, etc.
+The card checks `jpg`, `jpeg`, `png`, `webp`, then `gif`. The optional extra images use `_1` through `_5` (for example `SKU-1234_1.jpg` and `SKU-1234_2.jpg`) and appear as thumbnails after opening a product. The selected columns are saved in the browser, and **Change columns** lets you update them later. This means you can search a supplier reference, while the site uses the Oracle-code value in the same Excel row to locate its image.
 
-Extra images per product are supported by appending `_1` … `_5`:
+You can search by typing a reference number, or use **Scan reference** to scan a barcode containing that reference number with a phone camera. Camera barcode scanning works in supported modern browsers; a printed reference with no barcode should be typed into the search box.
 
+## Publish with GitHub Pages
+
+1. Create a GitHub repository and upload `index.html`, `build.py`, `products.xlsx`, generated `products.json`, and the `images` folder.
+2. Commit and push them to the `main` branch.
+3. In GitHub, open **Settings → Pages**.
+4. Under **Build and deployment**, choose **Deploy from a branch**.
+5. Select branch **main**, folder **/(root)**, then click **Save**.
+6. After GitHub finishes deploying, open the Pages URL shown on that screen.
+
+For local testing, use a small local server rather than opening `index.html` directly, because browsers block JSON requests from local files:
+
+```bash
+python -m http.server
 ```
-images/SKU-1234.jpg      # main
-images/SKU-1234_1.jpg    # extra
-images/SKU-1234_2.png    # extra
-```
 
-Extras show as a thumbnail strip in the modal.
-
-## First-run setup
-
-Open the site and pick:
-
-1. **Code column** — the column whose value matches image filenames.
-2. **Primary display columns** (1–3) — shown on each card (title, subtitle, badge).
-
-The choice is saved in your browser's `localStorage`. Use the **change columns**
-link in the header to reopen the panel.
-
-## Features
-
-- Case-insensitive substring search across every column
-- "X of N products" live count next to the search box
-- Click a card → modal with the full image, thumbnails of extra images, and every
-  field as a definition list (URL values render as clickable links)
-- Esc or clicking the backdrop closes the modal
-- Responsive, mobile-friendly, no external CSS/JS
-
-## Deploy to GitHub Pages
-
-1. Push this repo to GitHub (make sure `products.json` and `images/` are committed).
-2. In the repo on GitHub: **Settings → Pages**.
-3. Under **Build and deployment → Source**, choose **Deploy from a branch**.
-4. Set **Branch** to `main` and folder to `/ (root)`, then **Save**.
-5. Wait a minute — your site will be at `https://<user>.github.io/<repo>/`.
-
-That's it. To publish changes, regenerate `products.json`, commit, and push.
+Then visit `http://localhost:8000`.
