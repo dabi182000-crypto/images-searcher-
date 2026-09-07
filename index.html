@@ -68,12 +68,12 @@
     async function imageExists(url) { const image = new Image(); return new Promise(resolve => { image.onload = () => resolve(url); image.onerror = () => resolve(null); image.src = url; }); }
     async function findImages(code) {
       if (!text(code).trim()) return [];
-      const rawBase = text(code).trim(), base = safeFilePart(code), candidates = [];
-      for (let number = 0; number <= 5; number++) for (const ext of extensions) {
-        const filename = `${rawBase}${number ? '_' + number : ''}.${ext}`;
-        if (localImages.has(filename.toLocaleLowerCase())) candidates.push(localImages.get(filename.toLocaleLowerCase()));
-        else candidates.push(`images/${base}${number ? '_' + number : ''}.${ext}`);
-      }
+      const rawBase = text(code).trim(), base = safeFilePart(code), filenames = [];
+      for (let number = 0; number <= 5; number++) for (const ext of extensions) filenames.push(`${rawBase}${number ? '_' + number : ''}.${ext}`);
+      // With an uploaded ZIP, never request missing images from GitHub Pages.
+      // This avoids hundreds of unnecessary requests and keeps the checker private.
+      if (localImages.size) return filenames.map(name => localImages.get(name.toLocaleLowerCase())).filter(Boolean);
+      const candidates = filenames.map((_, index) => { const number = Math.floor(index / extensions.length), ext = extensions[index % extensions.length]; return `images/${base}${number ? '_' + number : ''}.${ext}`; });
       const found = [];
       for (const url of candidates) { const result = await imageExists(url); if (result) found.push(result); }
       return found;
