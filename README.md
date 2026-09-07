@@ -4,9 +4,9 @@ A static product search page that works with any Excel sheet and an image folder
 
 ## Private browser upload
 
-Use **Add Excel & images** in the website to choose an `.xlsx` workbook and its image folder directly from your computer. This is useful when the product data must not be public: the files stay in your browser session and are not uploaded to GitHub.
+Use **Upload files** in the website, choose an `.xlsx` workbook and the ZIP file containing the product images, then click **Start searching**. The files stay in your browser session and are not uploaded to GitHub.
 
-Choose the **Image filename / Oracle code column** in the setup panel, then search or scan a supplier reference. The site finds that reference in Excel and uses the Oracle-code value from the same row to display the correct local image.
+The site automatically uses an Oracle-code column to match image filenames, then lets you search or scan a supplier reference. The matching product image is shown immediately.
 
 ## Repository layout
 
