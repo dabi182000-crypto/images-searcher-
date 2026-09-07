@@ -49,15 +49,15 @@
     </section>
   </div>
   <dialog id="productModal"><div class="modal"><button id="closeModal" class="close" aria-label="Close">×</button><div><div id="mainImage" class="main-image"></div><div id="thumbs" class="thumbs" aria-label="Product images"></div></div><div class="details"><h2 id="modalTitle">Product details</h2><dl id="fields"></dl></div></div></dialog>
-  <dialog id="scannerModal" class="scanner-dialog"><div class="scanner"><button id="closeScanner" class="close" aria-label="Close">×</button><h2>Scan reference barcode</h2><p>Point your camera at the barcode containing the supplier reference.</p><video id="scannerVideo" autoplay muted playsinline></video></div></dialog>
+  <input id="photoReference" type="file" accept="image/*" capture="environment" hidden>
   <dialog id="uploadModal" class="upload-dialog"><div class="upload"><button id="closeUpload" class="close" aria-label="Close">×</button><h2>Upload product files</h2><p>Choose your Excel file and the ZIP file that contains the product pictures. Nothing is saved or uploaded.</p><label for="excelUpload">1. Excel file</label><input id="excelUpload" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"><label for="imagesUpload">2. Pictures ZIP file</label><input id="imagesUpload" type="file" accept=".zip,image/*" multiple><p class="privacy-note">The image files must be named with the Oracle code, for example <code>HH0006901.jpg</code>.</p><div class="settings-actions"><button id="loadUpload" class="button" type="button">Start searching</button></div></div></dialog>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script>
     const extensions = ['jpg','jpeg','png','webp','gif'];
     const $ = id => document.getElementById(id);
     let headers = [], products = [], settings, currentImages = [];
     const localImages = new Map();
-    const grid = $('grid'), search = $('search'), count = $('count'), modal = $('productModal'), scannerModal = $('scannerModal'), scannerVideo = $('scannerVideo');
-    let scannerStream = null, scanTimer = null;
+    const grid = $('grid'), search = $('search'), count = $('count'), modal = $('productModal');
 
     function text(value) { return value == null ? '' : String(value); }
     function storedSettings() { try { return JSON.parse(localStorage.getItem('productFinderColumns')); } catch { return null; } }
@@ -139,19 +139,15 @@
       const button = $('loadUpload'); button.disabled=true; button.textContent='Loading…';
       try { for (const url of localImages.values()) URL.revokeObjectURL(url); localImages.clear(); await addLocalImages($('imagesUpload').files); const data=await readWorkbook(workbook); if (!data.headers.length) throw new Error('The first row must contain the column headers.'); headers=data.headers; products=data.rows; settings=automaticSettings(); $('uploadModal').close(); $('toolbar').hidden=false; render(); } catch (error) { alert(error.message || 'Could not load the files.'); } finally { button.disabled=false; button.textContent='Start searching'; }
     }
-    function stopScanner() { if (scanTimer) { clearInterval(scanTimer); scanTimer=null; } if (scannerStream) { scannerStream.getTracks().forEach(track => track.stop()); scannerStream=null; } scannerVideo.srcObject=null; }
-    async function scanReference() {
-      if (!('BarcodeDetector' in window) || !navigator.mediaDevices?.getUserMedia) { alert('Barcode scanning is not supported by this browser. Type the reference number in the search box instead.'); return; }
-      try {
-        const detector = new BarcodeDetector({formats:['code_128','code_39','code_93','ean_13','ean_8','upc_a','upc_e','qr_code']});
-        scannerModal.showModal(); scannerStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false}); scannerVideo.srcObject=scannerStream;
-        scanTimer = setInterval(async () => { if (scannerVideo.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return; try { const codes=await detector.detect(scannerVideo); if (codes.length && codes[0].rawValue) { search.value=codes[0].rawValue; stopScanner(); scannerModal.close(); render(); search.focus(); } } catch (_) {} }, 350);
-      } catch (error) { stopScanner(); if (scannerModal.open) scannerModal.close(); alert('Camera access was not available. Type the reference number in the search box instead.'); }
+    function compact(value) { return text(value).toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+    async function scanPrintedReference(file) {
+      if (!file) return; const button=$('scanReference'); button.disabled=true; button.textContent='Reading label…';
+      try { if (!window.Tesseract) throw new Error('Text scanner is still loading. Please try again in a few seconds.'); const result=await Tesseract.recognize(file, 'eng', {logger: update => { if (update.status === 'recognizing text' && update.progress) button.textContent=`Reading ${Math.round(update.progress * 100)}%`; }}); const scanned=compact(result.data.text); if (scanned.length < 3) throw new Error('I could not read a reference. Take a clearer, closer photo of the printed number.'); const referenceColumn=headers.findIndex(header => /supplier.*ref|reference/i.test(text(header))); let match=products.find(row => referenceColumn >= 0 && compact(row[referenceColumn]).length >= 3 && scanned.includes(compact(row[referenceColumn]))); if (!match) match=products.find(row => row.some(value => compact(value).length >= 4 && scanned.includes(compact(value)))); if (!match) throw new Error('No reference from the photo was found in the Excel file. Take a closer photo showing only the reference number.'); search.value=text(match[referenceColumn >= 0 ? referenceColumn : settings.code]); render(); search.focus(); } catch (error) { alert(error.message || 'Could not read the reference.'); } finally { button.disabled=false; button.textContent='Scan reference'; $('photoReference').value=''; }
     }
     async function start() {
       try { const response=await fetch('products.json', {cache:'no-store'}); if (!response.ok) throw new Error(); const data=await response.json(); headers=Array.isArray(data.headers) ? data.headers : []; products=Array.isArray(data.rows) ? data.rows : []; if (!headers.length) throw new Error(); settings=automaticSettings(); $('toolbar').hidden=false; render(); } catch (_) { count.textContent='Upload your files'; grid.innerHTML='<div class="empty">Upload the Excel file and the pictures ZIP file to start.</div>'; $('uploadModal').showModal(); }
     }
-    search.addEventListener('input', render); $('closeModal').addEventListener('click', () => modal.close()); modal.addEventListener('click', event => { if (event.target === modal) modal.close(); }); $('scanReference').addEventListener('click', scanReference); $('closeScanner').addEventListener('click', () => { stopScanner(); scannerModal.close(); }); scannerModal.addEventListener('click', event => { if (event.target === scannerModal) { stopScanner(); scannerModal.close(); } }); scannerModal.addEventListener('close', stopScanner); $('uploadData').addEventListener('click', () => $('uploadModal').showModal()); $('closeUpload').addEventListener('click', () => $('uploadModal').close()); $('loadUpload').addEventListener('click', loadPrivateData);
+    search.addEventListener('input', render); $('closeModal').addEventListener('click', () => modal.close()); modal.addEventListener('click', event => { if (event.target === modal) modal.close(); }); $('scanReference').addEventListener('click', () => $('photoReference').click()); $('photoReference').addEventListener('change', event => scanPrintedReference(event.target.files[0])); $('uploadData').addEventListener('click', () => $('uploadModal').showModal()); $('closeUpload').addEventListener('click', () => $('uploadModal').close()); $('loadUpload').addEventListener('click', loadPrivateData);
     start();
   </script>
 </body>
