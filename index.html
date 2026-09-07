@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Product Search</title>
+<style>
+  :root {
+    --bg: #f7f7f8;
+    --card: #ffffff;
+    --text: #1a1a1a;
+    --muted: #666;
+    --border: #e5e5e7;
+    --accent: #0b6cf0;
+    --shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 12px rgba(0,0,0,.04);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background: var(--bg); color: var(--text);
+    -webkit-font-smoothing: antialiased;
+  }
+  header {
+    position: sticky; top: 0; z-index: 5;
+    background: rgba(247,247,248,.92);
+    backdrop-filter: saturate(180%) blur(8px);
+    border-bottom: 1px solid var(--border);
+  }
+  .bar {
+    max-width: 1200px; margin: 0 auto;
+    padding: 12px 16px;
+    display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+  }
+  .bar h1 {
+    margin: 0; font-size: 18px; font-weight: 600;
+    margin-right: auto;
+  }
+  .search {
+    flex: 1 1 260px; min-width: 200px;
+    display: flex; align-items: center; gap: 8px;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 8px 12px;
+  }
+  .search input {
+    flex: 1; border: 0; outline: 0; font-size: 15px; background: transparent; color: var(--text);
+  }
+  .count { font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .link-btn {
+    background: transparent; border: 0; padding: 0;
+    color: var(--accent); cursor: pointer; font-size: 13px;
+    text-decoration: underline;
+  }
+
+  main { max-width: 1200px; margin: 0 auto; padding: 16px; }
+
+  .grid {
+    display: grid; gap: 14px;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden; cursor: pointer;
+    display: flex; flex-direction: column;
+    box-shadow: var(--shadow);
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .card:hover { transform: translateY(-1px); box-shadow: 0 2px 4px rgba(0,0,0,.06), 0 10px 24px rgba(0,0,0,.06); }
+  .thumb {
+    aspect-ratio: 1 / 1; background: #f0f0f2;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--muted); font-size: 13px;
+    overflow: hidden;
+  }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .card-body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 2px; }
+  .card-title { font-size: 14px; font-weight: 600; line-height: 1.3; }
+  .card-sub { font-size: 12px; color: var(--muted); }
+  .badge {
+    align-self: flex-start; margin-top: 6px;
+    font-size: 11px; padding: 2px 8px; border-radius: 999px;
+    background: #eef4ff; color: var(--accent); font-weight: 500;
+  }
+  .empty { padding: 60px 16px; text-align: center; color: var(--muted); }
+
+  /* modal */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,.5);
+    display: none; align-items: center; justify-content: center;
+    z-index: 100; padding: 16px;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: var(--card); border-radius: 14px; overflow: hidden;
+    max-width: 900px; width: 100%; max-height: 90vh;
+    display: flex; flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0,0,0,.3);
+  }
+  .modal-head {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+  }
+  .modal-head h2 { margin: 0; font-size: 16px; flex: 1; }
+  .close {
+    background: transparent; border: 0; font-size: 22px; line-height: 1;
+    cursor: pointer; color: var(--muted); padding: 4px 8px;
+  }
+  .modal-body { overflow: auto; padding: 16px; }
+  .modal-img {
+    width: 100%; max-height: 480px; object-fit: contain;
+    background: #f0f0f2; border-radius: 10px;
+  }
+  .thumbs { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .thumbs img {
+    width: 64px; height: 64px; object-fit: cover;
+    border-radius: 8px; border: 1px solid var(--border); cursor: pointer;
+  }
+  .thumbs img.active { border-color: var(--accent); }
+  dl.fields {
+    margin: 16px 0 0; display: grid; grid-template-columns: max-content 1fr;
+    gap: 6px 16px; font-size: 14px;
+  }
+  dl.fields dt { color: var(--muted); }
+  dl.fields dd { margin: 0; word-break: break-word; }
+  dl.fields dd a { color: var(--accent); }
+
+  /* setup */
+  .setup-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,.55);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 200; padding: 16px;
+  }
+  .setup {
+    background: var(--card); border-radius: 14px;
+    max-width: 480px; width: 100%; padding: 20px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.3);
+  }
+  .setup h2 { margin: 0 0 4px; font-size: 18px; }
+  .setup p { margin: 0 0 14px; color: var(--muted); font-size: 13px; }
+  .field { display: block; margin-bottom: 12px; font-size: 13px; }
+  .field span { display: block; margin-bottom: 4px; color: var(--muted); }
+  .field select {
+    width: 100%; padding: 8px 10px; font-size: 14px;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: var(--card); color: var(--text);
+  }
+  .setup-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+  .btn {
+    padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--card); color: var(--text); font-size: 14px; cursor: pointer;
+  }
+  .btn.primary { background: var(--accent); color: white; border-color: var(--accent); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+  @media (max-width: 520px) {
+    .bar h1 { flex: 1 0 100%; }
+    dl.fields { grid-template-columns: 1fr; gap: 2px 0; }
+    dl.fields dt { margin-top: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="bar">
+    <h1>Product Search</h1>
+    <div class="search">
+      <input id="q" type="search" placeholder="Search any field…" autocomplete="off" spellcheck="false">
+      <span id="count" class="count">0 of 0 products</span>
+    </div>
+    <button class="link-btn" id="change-cols">change columns</button>
+  </div>
+</header>
+
+<main>
+  <div id="grid" class="grid"></div>
+  <div id="empty" class="empty" hidden>No products match.</div>
+</main>
+
+<div id="modal" class="modal-backdrop" role="dialog" aria-modal="true">
+  <div class="modal" role="document">
+    <div class="modal-head">
+      <h2 id="modal-title">Product</h2>
+      <button class="close" id="modal-close" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <img id="modal-img" class="modal-img" alt="">
+      <div id="modal-thumbs" class="thumbs"></div>
+      <dl id="modal-fields" class="fields"></dl>
+    </div>
+  </div>
+</div>
+
+<div id="setup" class="setup-backdrop" hidden>
+  <div class="setup">
+    <h2>Choose columns</h2>
+    <p>Pick which column identifies each product (matches image filenames), and up to three columns to show on cards.</p>
+    <label class="field">
+      <span>Code column (matches image filename)</span>
+      <select id="sel-code"></select>
+    </label>
+    <label class="field">
+      <span>Primary display column (title)</span>
+      <select id="sel-p1"></select>
+    </label>
+    <label class="field">
+      <span>Secondary column (subtitle, optional)</span>
+      <select id="sel-p2"></select>
+    </label>
+    <label class="field">
+      <span>Tertiary column (badge, optional)</span>
+      <select id="sel-p3"></select>
+    </label>
+    <div class="setup-actions">
+      <button class="btn" id="setup-cancel" hidden>Cancel</button>
+      <button class="btn primary" id="setup-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const IMG_EXTS = ["jpg", "jpeg", "png", "webp", "gif"];
+  const EXTRA_PROBE = 5;
+  const LS_KEY = "productSearchConfig.v1";
+
+  const $ = (s) => document.querySelector(s);
+  const grid = $("#grid");
+  const empty = $("#empty");
+  const countEl = $("#count");
+  const qInput = $("#q");
+
+  const state = {
+    products: [],
+    columns: [],
+    filtered: [],
+    config: null,
+    imgCache: new Map(),
+  };
+
+  const isUrl = (v) => typeof v === "string" && /^(https?:|mailto:|tel:)/i.test(v.trim());
+  const strval = (v) => (v == null ? "" : String(v));
+
+  function loadConfig() {
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch { return null; }
+  }
+  function saveConfig(cfg) {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(cfg)); } catch {}
+  }
+
+  async function loadProducts() {
+    const r = await fetch("products.json", { cache: "no-store" });
+    if (!r.ok) throw new Error("Could not load products.json");
+    const data = await r.json();
+    state.products = Array.isArray(data) ? data : [];
+    const cols = new Set();
+    for (const p of state.products) for (const k of Object.keys(p)) cols.add(k);
+    state.columns = Array.from(cols);
+  }
+
+  function findImage(code, index) {
+    const base = "images/" + code + (index ? "_" + index : "");
+    const key = base;
+    if (state.imgCache.has(key)) return Promise.resolve(state.imgCache.get(key));
+    return new Promise((resolve) => {
+      let i = 0;
+      const tryNext = () => {
+        if (i >= IMG_EXTS.length) {
+          state.imgCache.set(key, null); resolve(null); return;
+        }
+        const url = base + "." + IMG_EXTS[i++];
+        const img = new Image();
+        img.onload = () => { state.imgCache.set(key, url); resolve(url); };
+        img.onerror = tryNext;
+        img.src = url;
+      };
+      tryNext();
+    });
+  }
+
+  function render() {
+    const cfg = state.config;
+    const q = qInput.value.trim().toLowerCase();
+    const src = state.products;
+    state.filtered = q
+      ? src.filter((p) => {
+          for (const k of state.columns) {
+            const v = strval(p[k]).toLowerCase();
+            if (v && v.includes(q)) return true;
+          }
+          return false;
+        })
+      : src.slice();
+
+    countEl.textContent = `${state.filtered.length} of ${src.length} products`;
+    grid.innerHTML = "";
+    empty.hidden = state.filtered.length !== 0;
+
+    const frag = document.createDocumentFragment();
+    state.filtered.forEach((p, idx) => {
+      const card = document.createElement("div");
+      card.className = "card";
+      card.tabIndex = 0;
+
+      const thumb = document.createElement("div");
+      thumb.className = "thumb";
+      thumb.textContent = "No image";
+      card.appendChild(thumb);
+
+      const body = document.createElement("div");
+      body.className = "card-body";
+      const title = document.createElement("div");
+      title.className = "card-title";
+      title.textContent = strval(p[cfg.primary[0]]) || strval(p[cfg.code]) || "(untitled)";
+      body.appendChild(title);
+      if (cfg.primary[1]) {
+        const sub = document.createElement("div");
+        sub.className = "card-sub";
+        sub.textContent = strval(p[cfg.primary[1]]);
+        body.appendChild(sub);
+      }
+      if (cfg.primary[2]) {
+        const badge = document.createElement("div");
+        badge.className = "badge";
+        badge.textContent = strval(p[cfg.primary[2]]);
+        if (badge.textContent) body.appendChild(badge);
+      }
+      card.appendChild(body);
+
+      const code = strval(p[cfg.code]);
+      if (code) {
+        findImage(code, 0).then((url) => {
+          if (url) {
+            thumb.textContent = "";
+            const img = document.createElement("img");
+            img.loading = "lazy";
+            img.src = url;
+            img.alt = title.textContent;
+            thumb.appendChild(img);
+          }
+        });
+      }
+
+      card.addEventListener("click", () => openModal(p));
+      card.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openModal(p); }
+      });
+      frag.appendChild(card);
+    });
+    grid.appendChild(frag);
+  }
+
+  // modal
+  const modal = $("#modal");
+  const modalImg = $("#modal-img");
+  const modalTitle = $("#modal-title");
+  const modalFields = $("#modal-fields");
+  const modalThumbs = $("#modal-thumbs");
+
+  async function openModal(p) {
+    const cfg = state.config;
+    modalTitle.textContent = strval(p[cfg.primary[0]]) || strval(p[cfg.code]) || "Product";
+    modalFields.innerHTML = "";
+    modalThumbs.innerHTML = "";
+    modalImg.removeAttribute("src");
+    modalImg.alt = modalTitle.textContent;
+
+    for (const k of state.columns) {
+      const v = p[k];
+      const dt = document.createElement("dt");
+      dt.textContent = k;
+      const dd = document.createElement("dd");
+      const s = strval(v);
+      if (isUrl(s)) {
+        const a = document.createElement("a");
+        a.href = s; a.target = "_blank"; a.rel = "noopener noreferrer";
+        a.textContent = s;
+        dd.appendChild(a);
+      } else {
+        dd.textContent = s;
+      }
+      modalFields.appendChild(dt);
+      modalFields.appendChild(dd);
+    }
+
+    const code = strval(p[cfg.code]);
+    const urls = [];
+    if (code) {
+      const main = await findImage(code, 0);
+      if (main) urls.push(main);
+      for (let i = 1; i <= EXTRA_PROBE; i++) {
+        const u = await findImage(code, i);
+        if (u) urls.push(u);
+      }
+    }
+    if (urls.length) {
+      modalImg.src = urls[0];
+      if (urls.length > 1) {
+        urls.forEach((u, i) => {
+          const t = document.createElement("img");
+          t.src = u; t.alt = "";
+          if (i === 0) t.classList.add("active");
+          t.addEventListener("click", () => {
+            modalImg.src = u;
+            modalThumbs.querySelectorAll("img").forEach((el) => el.classList.remove("active"));
+            t.classList.add("active");
+          });
+          modalThumbs.appendChild(t);
+        });
+      }
+    } else {
+      modalImg.alt = "No image";
+    }
+
+    modal.classList.add("open");
+  }
+  function closeModal() { modal.classList.remove("open"); }
+  $("#modal-close").addEventListener("click", closeModal);
+  modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+
+  // setup
+  const setupEl = $("#setup");
+  const selCode = $("#sel-code");
+  const selP1 = $("#sel-p1");
+  const selP2 = $("#sel-p2");
+  const selP3 = $("#sel-p3");
+  const setupSave = $("#setup-save");
+  const setupCancel = $("#setup-cancel");
+
+  function populate(sel, includeBlank, preselect) {
+    sel.innerHTML = "";
+    if (includeBlank) {
+      const opt = document.createElement("option");
+      opt.value = ""; opt.textContent = "— none —";
+      sel.appendChild(opt);
+    }
+    for (const c of state.columns) {
+      const opt = document.createElement("option");
+      opt.value = c; opt.textContent = c;
+      if (c === preselect) opt.selected = true;
+      sel.appendChild(opt);
+    }
+    if (preselect === "" && includeBlank) sel.value = "";
+  }
+
+  function guessCodeColumn() {
+    const scores = state.columns.map((c) => {
+      const lower = c.toLowerCase();
+      let s = 0;
+      if (/(code|sku|ref|reference|id|item|part)/.test(lower)) s += 5;
+      return { c, s };
+    });
+    scores.sort((a, b) => b.s - a.s);
+    return scores[0]?.c || state.columns[0];
+  }
+
+  function openSetup(canCancel) {
+    const cfg = state.config || { code: guessCodeColumn(), primary: [state.columns[0] || "", "", ""] };
+    populate(selCode, false, cfg.code);
+    populate(selP1, false, cfg.primary[0] || state.columns[0]);
+    populate(selP2, true, cfg.primary[1] || "");
+    populate(selP3, true, cfg.primary[2] || "");
+    setupCancel.hidden = !canCancel;
+    setupEl.hidden = false;
+  }
+  function closeSetup() { setupEl.hidden = true; }
+
+  setupSave.addEventListener("click", () => {
+    const cfg = {
+      code: selCode.value,
+      primary: [selP1.value, selP2.value, selP3.value],
+    };
+    state.config = cfg;
+    saveConfig(cfg);
+    state.imgCache.clear();
+    closeSetup();
+    render();
+  });
+  setupCancel.addEventListener("click", closeSetup);
+  $("#change-cols").addEventListener("click", () => openSetup(true));
+
+  qInput.addEventListener("input", render);
+
+  (async function main() {
+    try {
+      await loadProducts();
+    } catch (e) {
+      grid.innerHTML = "";
+      empty.hidden = false;
+      empty.textContent = "Could not load products.json — run `python build.py` first.";
+      countEl.textContent = "0 of 0 products";
+      return;
+    }
+    if (!state.columns.length) {
+      empty.hidden = false;
+      empty.textContent = "products.json has no columns.";
+      return;
+    }
+    const stored = loadConfig();
+    const valid = stored && state.columns.includes(stored.code)
+      && Array.isArray(stored.primary) && stored.primary.length === 3
+      && stored.primary.every((c) => c === "" || state.columns.includes(c));
+    if (valid) {
+      state.config = stored;
+      render();
+    } else {
+      openSetup(false);
+    }
+  })();
+})();
+</script>
+</body>
+</html>
